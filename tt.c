@@ -29,9 +29,10 @@ typedef enum {
 
 typedef enum {
     FLOOR_COLLISION,
-    WALL_COLLISION,
-    CEILING_COLLISION,
-    NO_COLLISION
+    LEFT_WALL_COLLISION,
+    RIGHT_WALL_COLLISION,
+    NO_COLLISION,
+    CEILING_COLLISION
 } Collision_Type;
 
 typedef struct {
@@ -47,30 +48,35 @@ int tetri_o [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
     {0,0,0,0},
     {0,0,0,0}
 };
+
 int tetri_i [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
     {0,0,1,0},
     {0,0,1,0},
     {0,0,1,0},
     {0,0,1,0}
 };
+
 int tetri_s [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
     {0,0,1,1},
     {0,1,1,0},
     {0,0,0,0},
     {0,0,0,0}
 };
+
 int tetri_z [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
     {1,1,0,0},
     {0,1,1,0},
     {0,0,0,0},
     {0,0,0,0}
 };
+
 int tetri_j [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
     {0,0,0,1},
     {0,0,0,1},
     {0,0,1,1},
     {0,0,0,0}
 };
+
 int tetri_l [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
     {1,0,0,0},
     {1,0,0,0},
@@ -105,6 +111,7 @@ void draw_grid(void)
         limit ++;
     }
     mvprintw(CENTER_Y + line, CENTER_X + OFFSET_BORDER(limit), "!>");
+    mvprintw(CENTER_Y + line+1, CENTER_X, "<!====================!>");
 }
 
 void get_tetro_pos(int tetrimino[TETRIMINO_SIZE][TETRIMINO_SIZE], Actual_Tetrimino *at)
@@ -128,51 +135,79 @@ void render_tetrimino(Actual_Tetrimino *at)
     for(int i = 0; i < TETRIMINO_SIZE; i++){
         int render_pos_x = at->positions[i] % GRID_COLUMN;
         int render_pos_y = at->positions[i] / GRID_COLUMN;
-
         mvprintw(CENTER_Y + render_pos_y,  CENTER_X + OFFSET_IN(render_pos_x),"[]");
     }
 }
 
-Collision_Type get_collision(Actual_Tetrimino *at )
+void get_collision(Actual_Tetrimino *at,Collision_Type* w,Collision_Type* f )
 {
-    //TODO: IMPLEMENT COLLISION
-    for(int i = 0; i< TETRIMINO_SIZE; i ++){
+    for(int i = 0; i < TETRIMINO_SIZE; i ++){
         int pos_x = at->positions[i] % GRID_COLUMN;
         int pos_y = at->positions[i] / GRID_COLUMN;
         mvprintw(1,0,"COLLISION_POS X: %d | Y: %d",pos_x, pos_y);
-        if(pos_y + 1 >= GRID_ROW - 1){
-            mvprintw(3,0, "FLOOR COLLISON!");
 
+        bool floor_col = pos_y + 1 >= GRID_ROW;
+        bool right_col = pos_x + 1 >= GRID_COLUMN;
+        bool left_col = pos_x - 1 <= -1;
+
+        bool grid_collision_floor = grid[(pos_y * GRID_COLUMN + GRID_COLUMN) + pos_x] > 0;
+
+        if(grid_collision_floor){
+            *f = FLOOR_COLLISION;
         }
-        if(pos_x + 1 > 10 || pos_x +1 < 0){
-            mvprintw(4,0, "WALL COLLISON!");
 
+        if(floor_col){
+            *f =  FLOOR_COLLISION;
         }
 
+        if(right_col){
+            *w = RIGHT_WALL_COLLISION;
+        }
+
+        if(left_col){
+            *w =  LEFT_WALL_COLLISION;
+        }
     }
-    return NO_COLLISION;
+    mvprintw(5,0, "COLLISION!: floor:%u wall:%u",*f,*w);
 }
 void move_tetris(Actual_Tetrimino *at)
 {
+    Collision_Type wall_col = NO_COLLISION;
+    Collision_Type floor_col = NO_COLLISION;
+
+    get_collision(at, &wall_col,&floor_col);
     int key = getch();
     switch(key)
     {
         case KEY_LEFT:
+            if (wall_col == LEFT_WALL_COLLISION) {
+                mvprintw(3,0, "LEFT WALL COLLISION!");
+                break;
+            }
             at->pos_x -= 1;
             break;
         case KEY_RIGHT:
+            if (wall_col == RIGHT_WALL_COLLISION) {
+                mvprintw(3,0, "RIGHT WALL COLLISION!");
+                break;
+            }
             at->pos_x += 1;
             break;
+
         case KEY_UP:
             at->pos_y -= 1;
             break;
+
         case KEY_DOWN:
+            if (floor_col == FLOOR_COLLISION) {
+                mvprintw(2,0, "FLOOR COLLISION!");
+                break;
+            }
             at->pos_y += 1;
             break;
     }
 }
-
-Collision_Type handle_tetrimino(Actual_Tetrimino *at)
+void get_tetrimino_type(Actual_Tetrimino *at)
 {
     int (*tetrimino)[TETRIMINO_SIZE][TETRIMINO_SIZE];
 
@@ -202,15 +237,6 @@ Collision_Type handle_tetrimino(Actual_Tetrimino *at)
         }
 
     get_tetro_pos(*tetrimino,at);
-    render_tetrimino(at);
-    Collision_Type collision = get_collision(at);
-
-    if(collision == NO_COLLISION){
-        move_tetris(at);
-        return collision;
-    }
-    return collision;
-
 
  }
 
@@ -223,10 +249,15 @@ Collision_Type handle_tetrimino(Actual_Tetrimino *at)
      keypad(stdscr, TRUE);
      Actual_Tetrimino at= {0};
      at.type = TETRI_I;
+     grid [115] = 1;
+     grid [116] = 1;
+     grid [117] = 1;
      for(;;) {
          clear();
          draw_grid();
-         handle_tetrimino(&at);
+         get_tetrimino_type(&at);
+         render_tetrimino(&at);
+         move_tetris(&at);
     }
     endwin();
     return 0;
