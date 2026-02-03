@@ -1,2 +1,2 @@
 default:
-	clang -Wall -Wextra -pedantic -ggdb -lncursesw tt.c -o tt 
+	gcc -Wall -Wextra -pedantic -ggdb tt.c -o tt -lncursesw
