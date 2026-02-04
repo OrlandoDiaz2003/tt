@@ -31,6 +31,8 @@ typedef enum {
     FLOOR_COLLISION,
     LEFT_WALL_COLLISION,
     RIGHT_WALL_COLLISION,
+    GRID_LEFT_COLLISION,
+    GRID_RIGHT_COLLISION,
     NO_COLLISION,
     CEILING_COLLISION
 } Collision_Type;
@@ -50,10 +52,10 @@ int tetri_o [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
 };
 
 int tetri_i [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
-    {0,0,1,0},
-    {0,0,1,0},
-    {0,0,1,0},
-    {0,0,1,0}
+    {1,1,1,1},
+    {0,0,0,0},
+    {0,0,0,0},
+    {0,0,0,0}
 };
 
 int tetri_s [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
@@ -71,22 +73,22 @@ int tetri_z [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
 };
 
 int tetri_j [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
+    {0,0,0,0},
     {0,0,0,1},
-    {0,0,0,1},
-    {0,0,1,1},
+    {0,1,1,1},
     {0,0,0,0}
 };
 
 int tetri_l [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
+    {0,0,0,0},
     {1,0,0,0},
-    {1,0,0,0},
-    {1,1,0,0},
+    {1,1,1,0},
     {0,0,0,0}
 };
 
 int tetri_t [TETRIMINO_SIZE][TETRIMINO_SIZE] = {
-    {0,1,1,1},
     {0,0,1,0},
+    {0,1,1,1},
     {0,0,0,0},
     {0,0,0,0}
 };
@@ -103,7 +105,7 @@ void draw_grid(void)
         }
         if (limit == 0) mvprintw(CENTER_Y + line, CENTER_X + limit, "<!");
 
-        if (grid[i] == 1) {
+        if (grid[i] > 0) {
             mvprintw(CENTER_Y + line, CENTER_X + OFFSET_IN(limit), "[]");
         } else {
             mvprintw(CENTER_Y + line,CENTER_X + OFFSET_IN(limit), ". ");
@@ -119,12 +121,10 @@ void get_tetro_pos(int tetrimino[TETRIMINO_SIZE][TETRIMINO_SIZE], Actual_Tetrimi
     int index = 0;
     for (int y = 0; y < TETRIMINO_SIZE; y ++) {
         for (int x = 0; x < TETRIMINO_SIZE; x ++) {
-            if(tetrimino[y][x] == 0) {
-                continue;
-            }
-            int tetro_pos_x =(INITIAL_POS_X + x + at->pos_x);
-            int tetro_pos_y =  (y + at->pos_y) * GRID_COLUMN;
-            mvprintw(0, 0, "ACTUAL_POS X: %d | Y: %d", tetro_pos_x, tetro_pos_y);
+            if(tetrimino[y][x] == 0) continue;
+            int tetro_pos_x = (INITIAL_POS_X + x + at->pos_x);
+            int tetro_pos_y = (y + at->pos_y) * GRID_COLUMN;
+
             at->positions[index++] = tetro_pos_x + tetro_pos_y;
         }
     }
@@ -135,75 +135,62 @@ void render_tetrimino(Actual_Tetrimino *at)
     for(int i = 0; i < TETRIMINO_SIZE; i++){
         int render_pos_x = at->positions[i] % GRID_COLUMN;
         int render_pos_y = at->positions[i] / GRID_COLUMN;
+
         mvprintw(CENTER_Y + render_pos_y,  CENTER_X + OFFSET_IN(render_pos_x),"[]");
     }
 }
 
-void get_collision(Actual_Tetrimino *at,Collision_Type* w,Collision_Type* f )
+void rotate_tetrimino(Actual_Tetrimino *at)
+{
+    //TODO: implemente rotation
+}
+
+void get_collision(Actual_Tetrimino * at, Collision_Type * w, Collision_Type * f, Collision_Type * g)
 {
     for(int i = 0; i < TETRIMINO_SIZE; i ++){
         int pos_x = at->positions[i] % GRID_COLUMN;
         int pos_y = at->positions[i] / GRID_COLUMN;
-        mvprintw(1,0,"COLLISION_POS X: %d | Y: %d",pos_x, pos_y);
 
         bool floor_col = pos_y + 1 >= GRID_ROW;
         bool right_col = pos_x + 1 >= GRID_COLUMN;
-        bool left_col = pos_x - 1 <= -1;
+        bool left_col  = pos_x - 1 <= -1;
 
-        bool grid_collision_floor = grid[(pos_y * GRID_COLUMN + GRID_COLUMN) + pos_x] > 0;
+        bool grid_collision_floor      = grid[(pos_y * GRID_COLUMN  + GRID_COLUMN) + pos_x] > 0;
+        bool grid_collision_wall_right = grid[(pos_y * GRID_COLUMN) + pos_x + 1] > 0;
+        bool grid_collision_wall_left  = grid[(pos_y * GRID_COLUMN) + pos_x - 1] > 0;
 
-        if(grid_collision_floor){
-            *f = FLOOR_COLLISION;
-        }
-
-        if(floor_col){
-            *f =  FLOOR_COLLISION;
-        }
-
-        if(right_col){
-            *w = RIGHT_WALL_COLLISION;
-        }
-
-        if(left_col){
-            *w =  LEFT_WALL_COLLISION;
-        }
+        if(right_col )                * w = RIGHT_WALL_COLLISION;
+        if(left_col)                  * w = LEFT_WALL_COLLISION;
+        if(floor_col)                 * f = FLOOR_COLLISION;
+        if(grid_collision_wall_right) * g = GRID_RIGHT_COLLISION;
+        if(grid_collision_wall_left)  * g = GRID_LEFT_COLLISION;
+        if(grid_collision_floor)      * f = FLOOR_COLLISION;
     }
-    mvprintw(5,0, "COLLISION!: floor:%u wall:%u",*f,*w);
 }
 void move_tetris(Actual_Tetrimino *at)
 {
-    Collision_Type wall_col = NO_COLLISION;
+    Collision_Type wall_col  = NO_COLLISION;
+    Collision_Type grid_col  = NO_COLLISION;
     Collision_Type floor_col = NO_COLLISION;
 
-    get_collision(at, &wall_col,&floor_col);
+    get_collision(at, &wall_col, &floor_col, &grid_col);
     int key = getch();
     switch(key)
     {
         case KEY_LEFT:
-            if (wall_col == LEFT_WALL_COLLISION) {
-                mvprintw(3,0, "LEFT WALL COLLISION!");
-                break;
-            }
+            if (wall_col == LEFT_WALL_COLLISION || grid_col == GRID_LEFT_COLLISION) break;
             at->pos_x -= 1;
             break;
         case KEY_RIGHT:
-            if (wall_col == RIGHT_WALL_COLLISION) {
-                mvprintw(3,0, "RIGHT WALL COLLISION!");
-                break;
-            }
+            if (wall_col == RIGHT_WALL_COLLISION || grid_col == GRID_RIGHT_COLLISION) break;
             at->pos_x += 1;
             break;
-
+        case KEY_DOWN:
+            if (floor_col == FLOOR_COLLISION) break;
+            at->pos_y += 1;
+            break;
         case KEY_UP:
             at->pos_y -= 1;
-            break;
-
-        case KEY_DOWN:
-            if (floor_col == FLOOR_COLLISION) {
-                mvprintw(2,0, "FLOOR COLLISION!");
-                break;
-            }
-            at->pos_y += 1;
             break;
     }
 }
@@ -234,30 +221,28 @@ void get_tetrimino_type(Actual_Tetrimino *at)
         case TETRI_T:
             tetrimino = &tetri_t;
             break;
-        }
-
+    }
     get_tetro_pos(*tetrimino,at);
+}
 
- }
-
- int main(void)
- {
-     initscr();
-     curs_set(0);
-     noecho();
-     cbreak();
-     keypad(stdscr, TRUE);
-     Actual_Tetrimino at= {0};
-     at.type = TETRI_I;
-     grid [115] = 1;
-     grid [116] = 1;
-     grid [117] = 1;
-     for(;;) {
-         clear();
-         draw_grid();
-         get_tetrimino_type(&at);
-         render_tetrimino(&at);
-         move_tetris(&at);
+int main(void)
+{
+    initscr();
+    curs_set(0);
+    noecho();
+    cbreak();
+    keypad(stdscr, TRUE);
+    Actual_Tetrimino at= {0};
+    at.type = TETRI_T;
+    grid [115] = 1;
+    grid [116] = 1;
+    grid [117] = 1;
+    for(;;) {
+        clear();
+        draw_grid();
+        get_tetrimino_type(&at);
+        render_tetrimino(&at);
+        move_tetris(&at);
     }
     endwin();
     return 0;
