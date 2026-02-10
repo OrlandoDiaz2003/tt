@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <locale.h>
+#include <threads.h>
 #include <time.h>
 
 #define GRID_COLUMN 10
@@ -10,9 +11,9 @@
 
 #define TTM_SIZE 4
 
-#define CHAR_OFFSET 2
-#define OFFSET_BORDER(limit) (GRID_COLUMN + CHAR_OFFSET) + limit
-#define OFFSET_IN(limit) (CHAR_OFFSET + (limit * CHAR_OFFSET))
+#define TTM_WIDTH 2
+#define OFFSET_BORDER(limit) (GRID_COLUMN + TTM_WIDTH) + limit
+#define OFFSET_IN(limit) (TTM_WIDTH + (limit * TTM_WIDTH))
 
 #define CENTER_Y ((LINES - GRID_ROW)/2)
 #define CENTER_X ((COLS - GRID_COLUMN)/2) - GRID_COLUMN
@@ -55,6 +56,16 @@ typedef enum {
 } Collision_Type;
 
 typedef enum {
+    ACT_DOWN,
+    ACT_LEFT,
+    ACT_RIGHT,
+    ACT_ROTATE,
+    ACT_HARD_DROP,
+    ACT_RESIZE,
+    ACT_NONE
+} Action;
+
+typedef enum {
     GAME,
     MENU,
     GAME_OVER,
@@ -79,6 +90,7 @@ typedef struct {
     Game_State game_state;
     Actual_Tetrimino current_tetrimino;
     Tetrimino next_tetrimino;
+    int key;
     unsigned int score;
     unsigned int lines_clear;
     unsigned int level;
@@ -170,32 +182,32 @@ void color_off(Color color)
 
 void draw_grid(int grid[GRID_SIZE])
 {
-    int limit = 0;
+    int column = 0;
     int line = 0;
     for (int i = 0; i < (GRID_ROW * GRID_COLUMN); i ++){
         color_on(BORDERS);
-        if(limit == GRID_COLUMN) {
-            mvprintw(CENTER_Y + line,CENTER_X + OFFSET_BORDER(limit), "!>");
-            limit = 0;
+        if(column == GRID_COLUMN) {
+            mvprintw(CENTER_Y + line,CENTER_X + OFFSET_BORDER(column), "!>");
+            column = 0;
             line ++;
             color_on(BORDERS);
         }
-        if (limit == 0) {
-            mvprintw(CENTER_Y + line, CENTER_X + limit, "<!");
+        if (column == 0) {
+            mvprintw(CENTER_Y + line, CENTER_X + column, "<!");
         }
         if (grid[i] > 0) {
             color_on(grid[i]);
-            mvprintw(CENTER_Y + line, CENTER_X + OFFSET_IN(limit), "[]");
+            mvprintw(CENTER_Y + line, CENTER_X + OFFSET_IN(column), "[]");
             color_off(BORDERS);
         } else {
             color_off(BORDERS);
-            mvprintw(CENTER_Y + line,CENTER_X + OFFSET_IN(limit), ". ");
+            mvprintw(CENTER_Y + line,CENTER_X + OFFSET_IN(column), ". ");
         }
         color_on(BORDERS);
-        limit ++;
+        column ++;
     }
 
-    mvprintw(CENTER_Y + line, CENTER_X + OFFSET_BORDER(limit), "!>");
+    mvprintw(CENTER_Y + line, CENTER_X + OFFSET_BORDER(column), "!>");
     mvprintw(CENTER_Y + line + 1, CENTER_X, "<!====================!>");
     color_off(BORDERS);
 }
@@ -256,7 +268,7 @@ Collision_Type is_valid_position(int grid[GRID_SIZE], int shape[TTM_SIZE][TTM_SI
     return collision;
 }
 
-void get_rotate_tetrimino(Actual_Tetrimino *at, int rotated_shape[TTM_SIZE][TTM_SIZE])
+void get_rotate_positions(Actual_Tetrimino *at, int rotated_shape[TTM_SIZE][TTM_SIZE])
 {
     //TODO: implement counter clock wise rotation
     int size = (at->ttm.type == TETRI_I) ? 4 : 3;
@@ -330,6 +342,31 @@ void wall_kick(Actual_Tetrimino *at, int grid[GRID_SIZE], int rotated_shape[TTM_
         }
 }
 
+void reset_current_tetrimino(State *state)
+{
+    int index = rand() % 7;
+    state->current_tetrimino.pos_y = 0;
+    state->current_tetrimino.pos_x = 0;
+    state->current_tetrimino.ttm = state->next_tetrimino;
+    state->next_tetrimino = tetriminos[index];
+    memset(state->current_tetrimino.positions, 0,sizeof(state->current_tetrimino.positions));
+}
+
+bool spawn(State *state)
+{
+    bool can_spawn = true;
+    reset_current_tetrimino(state);
+    if(state->current_tetrimino.ttm.type == TETRI_I){
+        can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,-1) == NO_COLLISION;
+        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,-1);
+        state->current_tetrimino.pos_y -= 1;
+    }else{
+        can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,0) == NO_COLLISION;
+        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,0);
+    }
+    return can_spawn;
+}
+
 int hard_drop(Actual_Tetrimino * at, int grid[GRID_SIZE])
 {
     int temp_y = 0;
@@ -351,63 +388,80 @@ void lock_in(Actual_Tetrimino * at, int grid[GRID_SIZE])
     }
 }
 
-Collision_Type move_tetris(Actual_Tetrimino *at, int grid[GRID_SIZE])
+void move_tetrimino(State *state, int temp_x, int temp_y, Action action)
 {
-    //TODO: refactor this function
-    int rotated_shape[TTM_SIZE][TTM_SIZE] = {0};
-    int temp_x = 0;
-    int temp_y = 0;
-    bool h_drop = false;
-    int key = getch();
-    switch(key)
-    {
-        case KEY_LEFT:
-            temp_x -= 1;
-            break;
-        case KEY_RIGHT:
-            temp_x += 1;
-            break;
-        case KEY_DOWN:
-            temp_y += 1;
-            break;
-        case KEY_UP:
-            temp_y -= 1;
-            break;
-        case KEY_RESIZE:
-            clear();
-            break;
-        case ' ':
-            if(at->ttm.type == TETRI_O) break;
-            get_rotate_tetrimino(at, rotated_shape);
-            wall_kick(at, grid, rotated_shape);
-            break;
-        case 'h':
-            temp_y = hard_drop(at, grid);
-            h_drop = true;
-            break;
+    Collision_Type collision = get_collision(state->grid, state->current_tetrimino.positions, temp_x, temp_y);
+    
+    if(collision == NO_COLLISION ){
+        state->current_tetrimino.pos_x += temp_x;
+        state->current_tetrimino.pos_y += temp_y;
     }
-    Collision_Type collision = get_collision(grid, at->positions, temp_x, temp_y);
-    if(h_drop){
-        at->pos_x += temp_x;
-        at->pos_y += temp_y;
-        get_tetro_pos(at->positions, at->ttm.matrix, at->pos_x, at->pos_y);
-        return FLOOR_COLLISION;
+    if(action == ACT_HARD_DROP) {
+        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix, state->current_tetrimino.pos_x, state->current_tetrimino.pos_y);
+        collision = FLOOR_COLLISION;
     }
-    if(collision == NO_COLLISION){
-        at->pos_x += temp_x;
-        at->pos_y += temp_y;
+
+    if(collision == FLOOR_COLLISION){
+        clear();
+        lock_in(&state->current_tetrimino, state->grid);
+        int can_spawn = spawn(state);
+        if(!can_spawn) state->game_state = GAME_OVER;
     }
-    return collision;
 }
 
-void reset_current_tetrimino(State *state)
+void rotate_tetrimino(State *state)
 {
-    int index = rand() % 7;
-    state->current_tetrimino.pos_y = 0;
-    state->current_tetrimino.pos_x = 0;
-    state->current_tetrimino.ttm = state->next_tetrimino;
-    state->next_tetrimino = tetriminos[index];
-    memset(state->current_tetrimino.positions, 0,sizeof(state->current_tetrimino.positions));
+    int new_positions[TTM_SIZE][TTM_SIZE]= {0};
+    if(state->current_tetrimino.ttm.type == TETRI_O) return;
+    get_rotate_positions(&state->current_tetrimino, new_positions);
+    wall_kick(&state->current_tetrimino,state->grid,new_positions);
+}
+
+
+Action get_action(int key)
+{
+    switch(key)
+    {
+        case KEY_LEFT:   return ACT_LEFT;
+        case KEY_RIGHT:  return ACT_RIGHT;
+        case KEY_DOWN:   return ACT_DOWN;
+        case KEY_UP:     return ACT_ROTATE;
+        case KEY_RESIZE: return ACT_RESIZE;
+        case ' ':        return ACT_HARD_DROP;
+    }
+    return ACT_NONE;
+}
+
+void exec_action(Action action, State *state)
+{
+    int temp_x = 0;
+    int temp_y = 0;
+    switch(action){
+    case ACT_NONE:
+        break;
+    case ACT_RIGHT:
+        temp_x += 1;
+        move_tetrimino(state, temp_x, 0, ACT_RIGHT);
+        break;
+    case ACT_LEFT:
+        temp_x -= 1;
+        move_tetrimino(state, temp_x, 0, ACT_LEFT);
+        break;
+    case ACT_DOWN:
+        temp_y += 1;
+        move_tetrimino(state, 0, temp_y, ACT_DOWN);
+        break;
+    case ACT_HARD_DROP:
+        temp_y = hard_drop(&state->current_tetrimino, state->grid);
+        move_tetrimino(state,0,temp_y,ACT_HARD_DROP);
+        break;
+    case ACT_ROTATE:
+        rotate_tetrimino(state);
+        break;
+    case ACT_RESIZE:
+        clear();
+        break;
+    }
 }
 
 bool is_fill(int line, int grid[GRID_SIZE]){
@@ -511,21 +565,6 @@ void terminal_has_colors(void)
     }
 }
 
-bool spawn(State *state)
-{
-    bool can_spawn = true;
-    reset_current_tetrimino(state);
-    if(state->current_tetrimino.ttm.type == TETRI_I){
-        can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,-1) == NO_COLLISION;
-        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,-1);
-        state->current_tetrimino.pos_y -= 1;
-    }else{
-        can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,0) == NO_COLLISION;
-        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,0);
-    }
-    return can_spawn;
-}
-
 void render_next_tetrimino(Tetrimino next_tetrimino)
 {
     int next_ttm_position[TTM_SIZE] = {0};
@@ -567,25 +606,23 @@ void start_menu(State *state)
     int positions[TTM_SIZE] = {0};
     int shape[TTM_SIZE][TTM_SIZE] = {0};
     for(int i = 0; i < TOTAL_TTM; i ++){
-        int tetri_offset = (i * CHAR_OFFSET + TTM_SIZE * i);
+        int tetri_offset = (i * TTM_WIDTH + TTM_SIZE * i);
         memcpy(shape, tetriminos[i].matrix, sizeof(shape));
         get_tetro_pos(positions, shape, 0,0);
         if(i <= 2){
-            if(tetriminos[i].type == TETRI_L){
-                get_tetro_pos(positions, shape, -1, 0);
-            }
+            if(tetriminos[i].type == TETRI_L) get_tetro_pos(positions, shape, -1, 0);
             render(positions, tetriminos[i].color, (tetri_offset + (i * 4)) + COLS - CENTER_X - 28, LINES/2.0 - LINES * 0.3);
         }else{
             render(positions, tetriminos[i].color, (tetri_offset + (i * 2)) + COLS - CENTER_X - 28, LINES/2.0 - LINES * 0.3);
         }
     }
-    mvprintw(LINES/2.0 - LINES * 0.3 + 4 , COLS - (CENTER_X) - 10*2,  "== TETRIS TIME ==");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 6 , COLS - (CENTER_X) - 9*2,   "== CONTROLS ==");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 8 , COLS - (CENTER_X) - 11*2,  "[arrow_right]: move right");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 9 , COLS - (CENTER_X) - 11*2,  "[arrow_left]:  move left");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 10 , COLS - (CENTER_X) - 11*2, "[arrow_up]:    rotate");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 11 , COLS - (CENTER_X) - 11*2, "[h]:           hard drop");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 13 , COLS - (CENTER_X) - 11*2, "[pres any key to start]");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 4  , COLS - (CENTER_X)  - 10*2,  "== TETRIS TIME ==");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 6  , COLS - (CENTER_X)  - 9*2,   "== CONTROLS ==");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 8  , COLS - (CENTER_X)  - 11*2,  "[arrow_right]: move right");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 9  , COLS - (CENTER_X)  - 11*2,  "[arrow_left]:  move left");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 10 , COLS - (CENTER_X)  - 11*2,  "[arrow_up]:    rotate");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 11 , COLS - (CENTER_X)  - 11*2,  "[h]:           hard drop");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 13 , COLS - (CENTER_X)  - 11*2,  "[pres any key to start]");
     getch();
     clear();
     state->game_state = GAME;
@@ -600,22 +637,15 @@ void game_over(State *state)
 
 void game_loop(State *state)
 {
-    for(;;) {
-        int lines_clear = clean_fill_line(state->grid); update_score(state, lines_clear);
-        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix, state->current_tetrimino.pos_x, state->current_tetrimino.pos_y);
+    while(state->game_state == GAME) {
+        refresh();
+        int lines_clear = clean_fill_line(state->grid);
+        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix, state->current_tetrimino.pos_x,state->current_tetrimino.pos_y);
+        update_score(state, lines_clear);
         update_render(state);
-        Collision_Type current_collision = move_tetris(&state->current_tetrimino, state->grid);
-        if(current_collision == FLOOR_COLLISION) {
-            clear();
-            lock_in(&state->current_tetrimino, state->grid);
-            if(spawn(state)){
-                continue;
-            }else{
-                update_render(state);
-                state->game_state = GAME_OVER;
-                break;
-            }
-        }
+        state->key = getch();
+        Action action = get_action(state->key);
+        exec_action(action,state);
     }
 }
 
@@ -627,6 +657,7 @@ int main(void)
     curs_set(0);
     noecho();
     cbreak();
+    //TODO: implement timing
     //nodelay(stdscr, TRUE);
     setlocale(LC_ALL, "");
     keypad(stdscr, TRUE);
