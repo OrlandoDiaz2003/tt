@@ -518,7 +518,8 @@ void exec_action(Action action, State *state)
     }
 }
 
-bool is_fill(int line, int grid[GRID_SIZE]){
+bool is_fill(int line, int grid[GRID_SIZE])
+{
     for(int i = 0; i < GRID_COLUMN; i ++){
         if(grid[line * GRID_COLUMN + i] == 0) return false;
     }
@@ -527,11 +528,8 @@ bool is_fill(int line, int grid[GRID_SIZE]){
 
 void reset_grid(int fill_line, int grid[GRID_SIZE])
 {
-    for(int current_line = fill_line; current_line > 0; current_line --){
-        for(int column = 0; column < GRID_COLUMN; column ++){
-            grid[current_line * GRID_COLUMN + column] = grid[(current_line -  1) * GRID_COLUMN + column];
-        }
-    }
+    memmove(grid + GRID_COLUMN, grid, (fill_line * GRID_COLUMN) * sizeof(int));
+    memset(grid,0, GRID_COLUMN * sizeof(int));
 }
 
 int clean_fill_line(int grid[GRID_SIZE])
@@ -540,9 +538,6 @@ int clean_fill_line(int grid[GRID_SIZE])
     for(int lines = 0; lines < GRID_ROW; lines ++){
         if(is_fill(lines, grid)){
             lines_clear += 1;
-            for(int i = 0; i < GRID_COLUMN; i ++){
-                grid[lines * GRID_COLUMN + i] = 0;
-            }
             reset_grid(lines,grid);
         }
     }
@@ -685,15 +680,15 @@ void start_menu(State *state)
     color_on(BLUE);
     mvprintw(LINES/2.0 - LINES * 0.3 + 4  , COLS - (CENTER_X) - 10*2,  "== TETRIS TIME ==");
     color_off(BLUE);
-    mvprintw(LINES/2.0 - LINES * 0.3 + 6  , COLS - (CENTER_X) - 9*2,   "== CONTROLS ==");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 7  , COLS - (CENTER_X) - 11*2,  "[arrow_right]:  move right");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 8  , COLS - (CENTER_X) - 11*2,  "[arrow_left]:   move left");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 9 , COLS - (CENTER_X)  - 11*2,  "[arrow_up]|[r]: rotate right");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 10 , COLS - (CENTER_X)  - 11*2,  "[arrow_down]:  soft drop");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 11 , COLS - (CENTER_X) - 11*2,  "[d]:            rotate left");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 12 , COLS - (CENTER_X) - 11*2,  "[space]:        hard drop");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 6  , COLS - (CENTER_X) - 9*2,  "== CONTROLS ==");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 7  , COLS - (CENTER_X) - 11*2, "[arrow_right]:  move right");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 8  , COLS - (CENTER_X) - 11*2, "[arrow_left]:   move left");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 9  , COLS - (CENTER_X) - 11*2, "[arrow_up]|[r]: rotate right");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 10 , COLS - (CENTER_X) - 11*2, "[arrow_down]:   soft drop");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 11 , COLS - (CENTER_X) - 11*2, "[d]:            rotate left");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 12 , COLS - (CENTER_X) - 11*2, "[space]:        hard drop");
     color_on(GREEN);
-    mvprintw(LINES/2.0 - LINES * 0.3 + 13  , COLS - (CENTER_X) - 11*2,  "[press SPACE to start!]");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 13  , COLS - (CENTER_X) - 11*2, "[press SPACE to start!]");
     color_off(GREEN);
     if((getch()) == ' ') {
         state->game_state = GAME;
@@ -703,9 +698,16 @@ void start_menu(State *state)
 
 void game_over(State *state)
 {
-    mvprintw(0,0,"GAME OVER");
-    getch();
-    state->game_state = EXIT;
+    color_on(BORDERS);
+    mvprintw(LINES/2.0 - LINES * 0.3 + 4  , COLS - (CENTER_X) - 14*2,  "== GAME OVER ==       ");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 5  , COLS - (CENTER_X) - 14*2,  "Final Score: %d        ",state->score);
+    mvprintw(LINES/2.0 - LINES * 0.3 + 6  , COLS - (CENTER_X) - 14*2,  "Level:       %d        ",state->level);
+    mvprintw(LINES/2.0 - LINES * 0.3 + 7  , COLS - (CENTER_X) - 14*2,  "[press SPACE to exit!]");
+    color_off(BORDERS);
+    if((getch()) == ' ') {
+        state->game_state = EXIT;
+        clear();
+    }
 }
 
 void game_loop(State *state)
@@ -735,9 +737,9 @@ int main(void)
     curs_set(0);
     noecho();
     cbreak();
-    nodelay(stdscr, TRUE);
     setlocale(LC_ALL, "");
-    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+    keypad(stdscr,  TRUE);
 
     //Starting the Game
     State state;
