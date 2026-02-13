@@ -27,7 +27,7 @@ make
 - D: Rotate left
 - Space: Hard drop
 
-## What it dont have 
+## Missing features 
 
 - No pause button yet
 - Hold piece
