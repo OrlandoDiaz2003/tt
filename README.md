@@ -4,7 +4,7 @@ Personal hobby project made for learning purposes. Classic Tetris implementation
 
 ## Build
 ```bash
-gcc tt.c -lncursesw -o tt
+make
 ```
 
 ## Run

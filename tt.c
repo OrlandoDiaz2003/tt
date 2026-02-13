@@ -684,8 +684,8 @@ void start_menu(State *state)
     mvprintw(LINES/2.0 - LINES * 0.3 + 7  , COLS - (CENTER_X) - 11*2, "[arrow_right]:  move right");
     mvprintw(LINES/2.0 - LINES * 0.3 + 8  , COLS - (CENTER_X) - 11*2, "[arrow_left]:   move left");
     mvprintw(LINES/2.0 - LINES * 0.3 + 9  , COLS - (CENTER_X) - 11*2, "[arrow_up]|[r]: rotate right");
-    mvprintw(LINES/2.0 - LINES * 0.3 + 10 , COLS - (CENTER_X) - 11*2, "[arrow_down]:   soft drop");
     mvprintw(LINES/2.0 - LINES * 0.3 + 11 , COLS - (CENTER_X) - 11*2, "[d]:            rotate left");
+    mvprintw(LINES/2.0 - LINES * 0.3 + 10 , COLS - (CENTER_X) - 11*2, "[arrow_down]:   soft drop");
     mvprintw(LINES/2.0 - LINES * 0.3 + 12 , COLS - (CENTER_X) - 11*2, "[space]:        hard drop");
     color_on(GREEN);
     mvprintw(LINES/2.0 - LINES * 0.3 + 13  , COLS - (CENTER_X) - 11*2, "[press SPACE to start!]");
