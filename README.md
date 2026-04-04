@@ -22,6 +22,7 @@ make
 - Ghost piece showing drop position
 - 30 speed levels
 - Standard Tetris scoring
+- Hold Piece
 
 ## Controls
 
@@ -33,5 +34,4 @@ make
 ## Missing features 
 
 - No pause button yet
-- Hold piece
 - Lock Delay
