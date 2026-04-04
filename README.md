@@ -13,7 +13,7 @@ make
 ```
 ## Screenshot
 
-<img width="900" height="811" alt="screenshot" src="https://github.com/user-attachments/assets/c2294214-ea2b-47f9-9e6d-b84fb72b9fe3" />
+<img width="1082" height="965" alt="tetris_clone" src="https://github.com/user-attachments/assets/1d415e05-db89-4a06-8ab3-10519f7496ed" />
 
 ## What it has
 
@@ -30,6 +30,7 @@ make
 - Arrow up / R: Rotate right
 - D: Rotate left
 - Space: Hard drop
+- C: Hold piece
 
 ## Missing features 
 
