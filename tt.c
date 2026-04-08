@@ -113,7 +113,6 @@ typedef enum {
 
 typedef struct {
     int matrix[TTM_SIZE][TTM_SIZE];
-    Tetrimino_Type type;
     Color color;
 } Tetrimino;
 
@@ -121,18 +120,19 @@ typedef struct {
     int positions[TTM_SIZE];
     Tetrimino ttm;
     Rotation_Position rot_pos;
+    Tetrimino_Type ttm_type;
     int pos_x;
     int pos_y;
-} Current_tetrimino;
+} Current_Tetrimino;
 
 
 typedef struct {
     int grid [GRID_ROW * GRID_COLUMN];
     Game_State game_state;
-    Current_tetrimino current_tetrimino;
+    Current_Tetrimino current_tetrimino;
     Tetrimino_Type hold_tetrimino;
     Tetrimino next_tetrimino;
-    Tetrimino bag[NUM_TTM];
+    Tetrimino_Type bag[NUM_TTM];
     bool swap;//TODO: implement hold lock (prevent swap immediately after spawn)
     int bag_index;
     int current_frame;
@@ -147,7 +147,6 @@ typedef struct {
 const Tetrimino tetriminos[NUM_TTM] =
 {
     [TETRI_I] = {
-        .type = TETRI_I,
         .color = CYAN,
         .matrix = {
             {0,0,0,0},
@@ -157,7 +156,6 @@ const Tetrimino tetriminos[NUM_TTM] =
         }
     },
     [TETRI_J] = {
-        .type = TETRI_J,
         .color = BLUE,
         .matrix = {
             {1,0,0,0},
@@ -167,7 +165,6 @@ const Tetrimino tetriminos[NUM_TTM] =
         }
     },
     [TETRI_L] = {
-        .type= TETRI_L,
         .color = ORANGE,
         .matrix = {
             {0,0,1,0},
@@ -177,7 +174,6 @@ const Tetrimino tetriminos[NUM_TTM] =
         }
     },
     [TETRI_O] = {
-        .type = TETRI_O,
         .color = YELLOW,
         .matrix = {
             {0,1,1,0},
@@ -187,7 +183,6 @@ const Tetrimino tetriminos[NUM_TTM] =
         }
     },
    [TETRI_S] = {
-        .type = TETRI_S,
         .color = GREEN,
         .matrix = {
             {0,1,1,0},
@@ -197,7 +192,6 @@ const Tetrimino tetriminos[NUM_TTM] =
         }
     },
     [TETRI_T] = {
-        .type = TETRI_T,
         .color = MAGENTA,
         .matrix ={
             {0,1,0,0},
@@ -207,7 +201,6 @@ const Tetrimino tetriminos[NUM_TTM] =
         }
     },
     [TETRI_Z] = {
-        .type = TETRI_Z,
         .color = RED,
         .matrix = {
             {1,1,0,0},
@@ -316,13 +309,13 @@ Collision_Type is_valid_position(int grid[GRID_SIZE], int shape[TTM_SIZE][TTM_SI
     return collision;
 }
 
-Rotation_Position get_rotate_positions(Current_tetrimino *ct, int rotated_shape[TTM_SIZE][TTM_SIZE], Action rotation_type)
+Rotation_Position get_rotate_positions(Current_Tetrimino *ct, int rotated_shape[TTM_SIZE][TTM_SIZE], Action rotation_type)
 {
     Rotation_Position new_rot_pos = ct->rot_pos;
+    int size = (ct->ttm_type == TETRI_I) ? 4 : 3;
     //clockwise rotation
     if(rotation_type == ACT_ROTATE_RIGHT) {
         new_rot_pos = (new_rot_pos + 1) % 4;
-        int size = (ct->ttm.type == TETRI_I) ? 4 : 3;
         for(int y = 0; y < size; y ++){
             for(int x = 0; x < size; x ++){
                 rotated_shape[y][size - x - 1] = ct->ttm.matrix[x][y];
@@ -333,7 +326,6 @@ Rotation_Position get_rotate_positions(Current_tetrimino *ct, int rotated_shape[
     //counterclockwise rotation
     if(rotation_type == ACT_ROTATE_LEFT) {
         new_rot_pos = (new_rot_pos - 1) % 4;
-        int size = (ct->ttm.type == TETRI_I) ? 4 : 3;
         for(int y = 0; y < size; y ++){
             for(int x = 0; x < size; x ++){
                 rotated_shape[size - x - 1][y] = ct->ttm.matrix[y][x];
@@ -345,9 +337,9 @@ Rotation_Position get_rotate_positions(Current_tetrimino *ct, int rotated_shape[
     return ct->rot_pos;
 }
 
-void apply_rotation(Current_tetrimino *ct, int rotated_shape[TTM_SIZE][TTM_SIZE])
+void apply_rotation(Current_Tetrimino *ct, int rotated_shape[TTM_SIZE][TTM_SIZE])
 {
-    int size = (ct->ttm.type == TETRI_I) ? 4 : 3;
+    int size = (ct->ttm_type == TETRI_I) ? 4 : 3;
     for(int y = 0; y < size; y ++){
         for(int x = 0; x < size; x ++){
             ct->ttm.matrix[y][x] = rotated_shape[y][x];
@@ -355,7 +347,7 @@ void apply_rotation(Current_tetrimino *ct, int rotated_shape[TTM_SIZE][TTM_SIZE]
     }
 }
 
-void wall_kick(Current_tetrimino * ct, int grid[GRID_SIZE], int rotated_shape[TTM_SIZE][TTM_SIZE], Rotation_Position new_rot_pos){
+void wall_kick(Current_Tetrimino * ct, int grid[GRID_SIZE], int rotated_shape[TTM_SIZE][TTM_SIZE], Rotation_Position new_rot_pos){
     int temp_x = ct->pos_x;
     int temp_y = ct->pos_y;
     for(int i = 0; i < 5; i ++){
@@ -368,7 +360,7 @@ void wall_kick(Current_tetrimino * ct, int grid[GRID_SIZE], int rotated_shape[TT
         }
         temp_x = ct->pos_x;
         temp_y = ct->pos_y;
-        if(ct->ttm.type == TETRI_I){
+        if(ct->ttm_type == TETRI_I){
             temp_x += of_wl_ttm_i[ct->rot_pos][i][0] - of_wl_ttm_i[new_rot_pos][i][0];
             temp_y += of_wl_ttm_i[ct->rot_pos][i][1] - of_wl_ttm_i[new_rot_pos][i][1];
         }else{
@@ -382,7 +374,7 @@ void shuffle(State *state)
 {
     for (int i = NUM_TTM - 1; i > 0; i--) {
         int index = rand() % (i + 1);
-        Tetrimino temp = state->bag[i];
+        int temp = state->bag[i];
         state->bag[i] = state->bag[index];
         state->bag[index] = temp;
     }
@@ -390,25 +382,26 @@ void shuffle(State *state)
 
 void bag_next(State * state)
 {
-    state->current_tetrimino.ttm = state->bag[state->bag_index]; state->bag_index ++;
+    state->current_tetrimino.ttm_type = state->bag[state->bag_index]; state->bag_index ++;
+    state->current_tetrimino.ttm = tetriminos[state->current_tetrimino.ttm_type];
     if(state->bag_index > NUM_TTM - 1){
         state->bag_index = 0;
         shuffle(state);
     }
-    state->next_tetrimino = state->bag[state->bag_index];
+    state->next_tetrimino = tetriminos[state->bag[state->bag_index]];
     memset(state->current_tetrimino.positions, 0,sizeof(state->current_tetrimino.positions));
 }
 
 void swap_tetriminos(State *state)
 {
     if (state->hold_tetrimino == TETRI_NONE) {
-        state->hold_tetrimino = state->current_tetrimino.ttm.type;
+        state->hold_tetrimino = state->current_tetrimino.ttm_type;
         bag_next(state);
         clear();
     }
     else {
         Tetrimino swap_tetrimino = tetriminos[state->hold_tetrimino];
-        state->hold_tetrimino = state->current_tetrimino.ttm.type;
+        state->hold_tetrimino = state->current_tetrimino.ttm_type;
         state->current_tetrimino.ttm = swap_tetrimino;
         clear();
     }
@@ -431,7 +424,7 @@ bool spawn(State *state)
 {
     bool can_spawn = true;
     reset_current_tetrimino(state);
-    if(state->current_tetrimino.ttm.type == TETRI_I){
+    if(state->current_tetrimino.ttm_type == TETRI_I){
         can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,-1) == NO_COLLISION;
         get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,-1);
         state->current_tetrimino.pos_y -= 1;
@@ -442,7 +435,7 @@ bool spawn(State *state)
     return can_spawn;
 }
 
-int hard_drop(Current_tetrimino* ct, int grid[GRID_SIZE])
+int hard_drop(Current_Tetrimino* ct, int grid[GRID_SIZE])
 {
     int temp_y = 0;
     Collision_Type hard_drop_col = NO_COLLISION;
@@ -456,7 +449,7 @@ int hard_drop(Current_tetrimino* ct, int grid[GRID_SIZE])
     return temp_y;
 }
 
-void lock_in(Current_tetrimino* ct, int grid[GRID_SIZE])
+void lock_in(Current_Tetrimino* ct, int grid[GRID_SIZE])
 {
     for(int i = 0; i < TTM_SIZE; i++){
         grid[ct->positions[i]] = ct->ttm.color;
@@ -473,8 +466,12 @@ void move_tetrimino(State *state, int temp_x, int temp_y, Action action)
     }
 
     if(action == ACT_HARD_DROP) {
-        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,
-                                  state->current_tetrimino.pos_x, state->current_tetrimino.pos_y);
+        get_tetro_pos(
+            state->current_tetrimino.positions,
+            state->current_tetrimino.ttm.matrix,
+            state->current_tetrimino.pos_x,
+            state->current_tetrimino.pos_y
+        );
         collision = FLOOR_COLLISION;
     }
 
@@ -490,7 +487,7 @@ void rotate_tetrimino(State *state, Action rotation_type)
 {
     Rotation_Position new_rot_pos = state->current_tetrimino.rot_pos;
     int new_positions[TTM_SIZE][TTM_SIZE]= {0};
-    if(state->current_tetrimino.ttm.type == TETRI_O) return;
+    if(state->current_tetrimino.ttm_type == TETRI_O) return;
     new_rot_pos = get_rotate_positions(&state->current_tetrimino, new_positions,rotation_type);
     wall_kick(&state->current_tetrimino,state->grid,new_positions, new_rot_pos);
 }
@@ -580,9 +577,9 @@ int clean_fill_line(int grid[GRID_SIZE])
 void init_state(State *state)
 {
     srand(time(NULL));
-    memcpy(state->bag, tetriminos, sizeof(state->bag));
+    for(int i = 0; i < NUM_TTM; i ++) state->bag[i] = i;
     shuffle(state);
-    state->next_tetrimino = state->bag[1];
+    state->next_tetrimino = tetriminos[state->bag[1]];
     state->game_state     = MENU;
     state->swap           = true;
     state->hold_tetrimino = TETRI_NONE;
@@ -721,7 +718,7 @@ void start_menu(State *state)
         memcpy(shape, tetriminos[i].matrix, sizeof(shape));
         get_tetro_pos(positions, shape, 0,0);
         if(i <= 2){
-            if(tetriminos[i].type == TETRI_L) get_tetro_pos(positions, shape, -1, 0);
+            if(i == TETRI_L) get_tetro_pos(positions, shape, -1, 0);
             render(positions, tetriminos[i].color, (tetri_offset + (i * 4)) + COLS - CENTER_X - 28, LINES/2.0 - LINES * 0.3);
         }else{
             render(positions, tetriminos[i].color, (tetri_offset + (i * 2)) + COLS - CENTER_X - 28, LINES/2.0 - LINES * 0.3);
@@ -769,13 +766,20 @@ void game_loop(State *state)
 {
     while(state->game_state == GAME) {
         int lines_clear = clean_fill_line(state->grid);
-        get_tetro_pos(state->current_tetrimino.positions,
-                       state->current_tetrimino.ttm.matrix, state->current_tetrimino.pos_x,state->current_tetrimino.pos_y);
+        get_tetro_pos(
+            state->current_tetrimino.positions,
+            state->current_tetrimino.ttm.matrix,
+            state->current_tetrimino.pos_x,
+            state->current_tetrimino.pos_y
+        );
+
+        while ((state->key = getch()) != ERR) {
+            state->action = get_action(state->key);
+            exec_action(state);
+        }
+
         update_score(state, lines_clear);
         update_render(state);
-        state->key = getch();
-        state->action = get_action(state->key);
-        exec_action(state);
         if(state->current_frame >= frames_per_level[state->level]) {
             state->action = ACT_DOWN;
             exec_action(state);
