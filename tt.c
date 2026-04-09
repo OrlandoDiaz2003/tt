@@ -10,6 +10,8 @@
 #define GRID_ROW 20
 #define GRID_SIZE (GRID_COLUMN * GRID_ROW)
 
+#define FPS 16667 // 60 FPS in microseconds
+
 #define TTM_SIZE 4
 
 #define TTM_WIDTH 2
@@ -382,7 +384,8 @@ void shuffle(State *state)
 
 void bag_next(State * state)
 {
-    state->current_tetrimino.ttm_type = state->bag[state->bag_index]; state->bag_index ++;
+    state->current_tetrimino.ttm_type = state->bag[state->bag_index];
+    state->bag_index ++;
     state->current_tetrimino.ttm = tetriminos[state->current_tetrimino.ttm_type];
     if(state->bag_index > NUM_TTM - 1){
         state->bag_index = 0;
@@ -397,14 +400,15 @@ void swap_tetriminos(State *state)
     if (state->hold_tetrimino == TETRI_NONE) {
         state->hold_tetrimino = state->current_tetrimino.ttm_type;
         bag_next(state);
-        clear();
     }
     else {
-        Tetrimino swap_tetrimino = tetriminos[state->hold_tetrimino];
+        Tetrimino_Type temp_type = state->hold_tetrimino;
         state->hold_tetrimino = state->current_tetrimino.ttm_type;
-        state->current_tetrimino.ttm = swap_tetrimino;
-        clear();
+
+        state->current_tetrimino.ttm = tetriminos[temp_type];
+        state->current_tetrimino.ttm_type = temp_type;
     }
+    clear();
 }
 
 void reset_current_tetrimino(State *state)
@@ -426,11 +430,11 @@ bool spawn(State *state)
     reset_current_tetrimino(state);
     if(state->current_tetrimino.ttm_type == TETRI_I){
         can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,-1) == NO_COLLISION;
-        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,-1);
+        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix, 0,  -1);
         state->current_tetrimino.pos_y -= 1;
     }else{
         can_spawn = is_valid_position(state->grid,state->current_tetrimino.ttm.matrix,0,0) == NO_COLLISION;
-        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix,0,0);
+        get_tetro_pos(state->current_tetrimino.positions, state->current_tetrimino.ttm.matrix, 0, 0);
     }
     return can_spawn;
 }
@@ -786,7 +790,7 @@ void game_loop(State *state)
             state->current_frame = 0;
         }
         state->current_frame ++;
-        usleep(16667);
+        usleep(FPS);
     }
 }
 
